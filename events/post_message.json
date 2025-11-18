@@ -1,0 +1,90 @@
+{
+  "body": "{\"object\":\"whatsapp_business_account\",\"entry\":[{\"id\":\"1467461361185681\",\"changes\":[{\"value\":{\"messaging_product\":\"whatsapp\",\"metadata\":{\"display_phone_number\":\"15551665975\",\"phone_number_id\":\"751950824677017\"},\"contacts\":[{\"profile\":{\"name\":\"Himanshu Gupta\"},\"wa_id\":\"917838273279\"}],\"messages\":[{\"from\":\"917838273279\",\"id\":\"wamid.HBgMOTE3ODM4MjczMjc5FQIAEhgUM0FGRDJBQzlDNDRENjE3MTMwNzMA\",\"timestamp\":\"1763461990\",\"text\":{\"body\":\"Hi\"},\"type\":\"text\"}]},\"field\":\"messages\"}]}]}",
+  "headers": {
+    "Accept": "*/*",
+    "Accept-Encoding": "deflate, gzip",
+    "Content-Type": "application/json",
+    "Host": "geuq26tax2.execute-api.ap-south-1.amazonaws.com",
+    "User-Agent": "facebookexternalua",
+    "X-Amzn-Trace-Id": "Root=1-691c4b6e-13360eeb393e09e217bbdd5f",
+    "X-Forwarded-For": "173.252.127.26",
+    "X-Forwarded-Port": "443",
+    "X-Forwarded-Proto": "https",
+    "X-Hub-Signature": "sha1=500ded2898268e527e174b5b00a68295b4df931b",
+    "X-Hub-Signature-256": "sha256=15715b267fc0435f912c975441ebb8735830fab0d8a7fdb7d6c1e7473c7eadbc"
+  },
+  "httpMethod": "POST",
+  "isBase64Encoded": false,
+  "multiValueHeaders": {
+    "Accept": [
+      "*/*"
+    ],
+    "Accept-Encoding": [
+      "deflate, gzip"
+    ],
+    "Content-Type": [
+      "application/json"
+    ],
+    "Host": [
+      "geuq26tax2.execute-api.ap-south-1.amazonaws.com"
+    ],
+    "User-Agent": [
+      "facebookexternalua"
+    ],
+    "X-Amzn-Trace-Id": [
+      "Root=1-691c4b6e-13360eeb393e09e217bbdd5f"
+    ],
+    "X-Forwarded-For": [
+      "173.252.127.26"
+    ],
+    "X-Forwarded-Port": [
+      "443"
+    ],
+    "X-Forwarded-Proto": [
+      "https"
+    ],
+    "X-Hub-Signature": [
+      "sha1=500ded2898268e527e174b5b00a68295b4df931b"
+    ],
+    "X-Hub-Signature-256": [
+      "sha256=15715b267fc0435f912c975441ebb8735830fab0d8a7fdb7d6c1e7473c7eadbc"
+    ]
+  },
+  "multiValueQueryStringParameters": null,
+  "path": "/api/v1/divya-sutra/bot/webhook",
+  "pathParameters": null,
+  "queryStringParameters": null,
+  "requestContext": {
+    "accountId": "430118830579",
+    "apiId": "geuq26tax2",
+    "deploymentId": "c12er9",
+    "domainName": "geuq26tax2.execute-api.ap-south-1.amazonaws.com",
+    "domainPrefix": "geuq26tax2",
+    "extendedRequestId": "UPC5WF-FhcwEajw=",
+    "httpMethod": "POST",
+    "identity": {
+      "accessKey": null,
+      "accountId": null,
+      "caller": null,
+      "cognitoAuthenticationProvider": null,
+      "cognitoAuthenticationType": null,
+      "cognitoIdentityId": null,
+      "cognitoIdentityPoolId": null,
+      "principalOrgId": null,
+      "sourceIp": "173.252.127.26",
+      "user": null,
+      "userAgent": "facebookexternalua",
+      "userArn": null
+    },
+    "path": "/dev/api/v1/divya-sutra/bot/webhook",
+    "protocol": "HTTP/1.1",
+    "requestId": "222dac01-a59c-48eb-a31f-da149387507c",
+    "requestTime": "18/Nov/2025:10:33:18 +0000",
+    "requestTimeEpoch": 1763461998618,
+    "resourceId": "apxmnl",
+    "resourcePath": "/api/v1/divya-sutra/bot/webhook",
+    "stage": "dev"
+  },
+  "resource": "/api/v1/divya-sutra/bot/webhook",
+  "stageVariables": null
+}

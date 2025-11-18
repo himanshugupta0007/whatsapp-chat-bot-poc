@@ -5,6 +5,7 @@ version = 0.1
 [default]
 [default.global.parameters]
 stack_name = "whats-app-chat-bot-poc"
+region = "ap-south-1"
 
 [default.build.parameters]
 cached = true
@@ -17,6 +18,9 @@ lint = true
 capabilities = "CAPABILITY_IAM"
 confirm_changeset = true
 resolve_s3 = true
+s3_prefix = "whats-app-chat-bot-poc"
+region = "ap-south-1"
+image_repositories = []
 
 [default.package.parameters]
 resolve_s3 = true
@@ -29,3 +33,14 @@ warm_containers = "EAGER"
 
 [default.local_start_lambda.parameters]
 warm_containers = "EAGER"
+
+[dev.deploy.parameters]
+stack_name = "whats-app-chat-bot-poc"
+resolve_s3 = true
+s3_prefix = "whats-app-chat-bot-poc"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+image_repositories = []
+
+[dev.global.parameters]
+region = "ap-south-1"

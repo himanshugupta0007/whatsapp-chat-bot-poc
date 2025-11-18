@@ -1,0 +1,20 @@
+{
+  "version": "2.0",
+  "routeKey": "GET /webhook",
+  "rawPath": "/webhook",
+  "queryStringParameters": {
+    "hub.mode": "subscribe",
+    "hub.verify_token": "CRwLS18BbXCoK4vJ4T7m4bZ0bt670C",
+    "hub.challenge": "1234567890"
+  },
+  "headers": {
+    "accept": "*/*"
+  },
+  "requestContext": {
+    "http": {
+      "method": "GET",
+      "path": "/webhook"
+    }
+  },
+  "isBase64Encoded": false
+}
