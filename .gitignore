@@ -242,3 +242,15 @@ $RECYCLE.BIN/
 */build/*
 
 # End of https://www.gitignore.io/api/osx,linux,python,windows,pycharm,visualstudiocode
+
+.aws-sam/*
+.vscode-test
+.idea/*
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/dictionaries
+.pytest_cache/
+.env
+.venv
+env/
+venv/

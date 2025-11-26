@@ -12,11 +12,158 @@ Globals:
     Environment:
       Variables:
         VERIFY_TOKEN: dev-bot-verify-token
-        APP_SECRET:  dev-bot-meta-api-key
+        APP_SECRET: dev-bot-meta-api-key
         PHONE_ID: dev-bot-phone-number-id
         USER_TOKEN: dev-bot-system-user-token
+        PRODUCTS_TABLE_NAME: !Ref ProductsTable
+        CARTS_TABLE_NAME: !Ref CartsTable
+        ORDERS_TABLE_NAME: !Ref OrdersTable
+        USERS_TABLE_NAME: !Ref UsersTable
 
 Resources:
+  # DynamoDB Table to store user data, messages, or session information, product, cart data
+  # 1) Products - read-heavy, simple catalog
+  ProductsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: ds-products
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: productId
+          AttributeType: S
+        - AttributeName: category
+          AttributeType: S
+        - AttributeName: sortKey
+          AttributeType: S
+      KeySchema:
+        - AttributeName: productId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: CategoryIndex
+          KeySchema:
+            - AttributeName: category
+              KeyType: HASH
+            - AttributeName: sortKey
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  # 2) Carts - 1 active cart per user
+  CartsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: ds-carts
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: cartId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+        - AttributeName: cartId
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: expiresAt   # epoch seconds in items
+        Enabled: true
+
+  # 3) Orders - confirmed orders + user-orders GSI
+  OrdersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: ds-orders
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: orderId
+          AttributeType: S
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: createdAt
+          AttributeType: S
+      KeySchema:
+        - AttributeName: orderId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: UserOrdersIndex
+          KeySchema:
+            - AttributeName: userId
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  # 4) Users - bot users / customers + lightweight session state
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: ds-users
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+  # Bot Execution Role
+  BotExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub whatsapp-bot-execution-role-${AWS::StackName}
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess
+
+      Policies:
+        - PolicyName: BotDynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # ---------------------------
+              # DynamoDB Permissions
+              # ---------------------------
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:BatchGetItem
+                  - dynamodb:BatchWriteItem
+                  - dynamodb:Query
+                  - dynamodb:DescribeTable
+                Resource:
+                  - !GetAtt ProductsTable.Arn
+                  - !GetAtt CartsTable.Arn
+                  - !GetAtt OrdersTable.Arn
+                  - !GetAtt UsersTable.Arn
+
+              - Effect: Allow
+                Action: dynamodb:Query
+                Resource:
+                  - !Sub "${OrdersTable.Arn}/index/UserOrdersIndex"
+                  - !Sub "${ProductsTable.Arn}/index/CategoryIndex"
+
+              # ---------------------------
+              # SSM Parameter Store Permissions
+              # ---------------------------
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                Resource:
+                  - arn:aws:ssm:ap-south-1:430118830579:parameter/dev-bot-meta-api-key
+                  - arn:aws:ssm:ap-south-1:430118830579:parameter/dev-bot-verify-token
+                  - arn:aws:ssm:ap-south-1:430118830579:parameter/dev-bot-system-user-token
+                  - arn:aws:ssm:ap-south-1:430118830579:parameter/dev-bot-phone-number-id
+  # Webhook function to handle incoming POST requests from WhatsApp
   WebhookFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -24,6 +171,7 @@ Resources:
       Handler: post_data.post_handler
       Role: arn:aws:iam::430118830579:role/bot-execution-role
 
+  # Verify function to handle GET requests for webhook verification
   VerifyBotFunction:
     Type: AWS::Serverless::Function
     Properties:
