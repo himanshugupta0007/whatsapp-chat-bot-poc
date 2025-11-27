@@ -169,7 +169,7 @@ Resources:
     Properties:
       CodeUri: ./whatsapp-bot
       Handler: post_data.post_handler
-      Role: arn:aws:iam::430118830579:role/bot-execution-role
+      Role: !GetAtt BotExecutionRole.Arn
 
   # Verify function to handle GET requests for webhook verification
   VerifyBotFunction:
@@ -177,4 +177,11 @@ Resources:
     Properties:
       CodeUri: ./whatsapp-bot
       Handler: app.get_handler
-      Role: arn:aws:iam::430118830579:role/bot-execution-role
+      Role: !GetAtt BotExecutionRole.Arn
+
+  ProductsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./whatsapp-bot
+      Handler: product_function.lambda_handler
+      Role: !GetAtt BotExecutionRole.Arn
