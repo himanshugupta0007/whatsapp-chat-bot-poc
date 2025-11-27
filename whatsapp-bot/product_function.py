@@ -1,7 +1,8 @@
 import json
 
+
 def lambda_handler(event, context):
-    print("Received event:", json.dumps(event))   # always log input
+    print("Received event:", json.dumps(event))  # always log input
 
     operation = event.get("operation")
 
@@ -36,6 +37,12 @@ def lambda_handler(event, context):
     elif operation == "GET_PRODUCT":
         product_id = event.get("id")
         print("Getting product with ID:", product_id)
+
+        if not product_id:
+            return {
+                "statusCode": 400,
+                "body": json.dumps({"message": "Path parameter 'id' is required"})
+            }
 
         # Minimal mock response
         return {
