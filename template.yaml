@@ -185,3 +185,10 @@ Resources:
       CodeUri: ./whatsapp-bot
       Handler: product_function.lambda_handler
       Role: !GetAtt BotExecutionRole.Arn
+
+  CartFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./whatsapp-bot
+      Handler: cart_function.lambda_handler
+      Role: !GetAtt BotExecutionRole.Arn
