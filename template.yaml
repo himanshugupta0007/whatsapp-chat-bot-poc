@@ -1,44 +1,47 @@
-AWSTemplateFormatVersion: '2010-09-09'
-Transform: AWS::Serverless-2016-10-31
-Description: WhatsApp Webhook (API Gateway HTTP API + Lambda)
+# AWS CloudFormation Template for a WhatsApp Webhook Application
+# This template defines resources for an API Gateway HTTP API and AWS Lambda functions
+# to handle WhatsApp webhook events, along with DynamoDB tables for data storage.
+
+AWSTemplateFormatVersion: '2010-09-09'  # Specifies the version of the AWS CloudFormation template format.
+Transform: AWS::Serverless-2016-10-31  # Enables the use of AWS SAM (Serverless Application Model).
+Description: WhatsApp Webhook (API Gateway HTTP API + Lambda)  # Description of the template.
 
 Globals:
   Function:
-    Runtime: python3.12
-    Timeout: 10
-    MemorySize: 256
-    Tracing: Active
-    Architectures: [ x86_64 ]
+    Runtime: python3.12  # Specifies the Python runtime for all Lambda functions.
+    Timeout: 10  # Maximum execution time for Lambda functions in seconds.
+    MemorySize: 256  # Memory allocated to Lambda functions in MB.
+    Tracing: Active  # Enables AWS X-Ray tracing for Lambda functions.
+    Architectures: [ x86_64 ]  # Specifies the architecture for Lambda functions.
     Environment:
-      Variables:
+      Variables:  # Environment variables for Lambda functions.
         VERIFY_TOKEN: dev-bot-verify-token
         APP_SECRET: dev-bot-meta-api-key
         PHONE_ID: dev-bot-phone-number-id
         USER_TOKEN: dev-bot-system-user-token
-        PRODUCTS_TABLE_NAME: !Ref ProductsTable
-        CARTS_TABLE_NAME: !Ref CartsTable
-        ORDERS_TABLE_NAME: !Ref OrdersTable
-        USERS_TABLE_NAME: !Ref UsersTable
+        PRODUCTS_TABLE_NAME: !Ref ProductsTable  # Reference to the Products DynamoDB table.
+        CARTS_TABLE_NAME: !Ref CartsTable  # Reference to the Carts DynamoDB table.
+        ORDERS_TABLE_NAME: !Ref OrdersTable  # Reference to the Orders DynamoDB table.
+        USERS_TABLE_NAME: !Ref UsersTable  # Reference to the Users DynamoDB table.
 
 Resources:
-  # DynamoDB Table to store user data, messages, or session information, product, cart data
-  # 1) Products - read-heavy, simple catalog
+  # DynamoDB Table to store product catalog data.
   ProductsTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: ds-products
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
+      TableName: ds-products  # Name of the DynamoDB table.
+      BillingMode: PAY_PER_REQUEST  # On-demand billing mode.
+      AttributeDefinitions:  # Attributes for the table.
         - AttributeName: productId
-          AttributeType: S
+          AttributeType: S  # String type.
         - AttributeName: category
           AttributeType: S
         - AttributeName: sortKey
           AttributeType: S
-      KeySchema:
+      KeySchema:  # Primary key schema.
         - AttributeName: productId
-          KeyType: HASH
-      GlobalSecondaryIndexes:
+          KeyType: HASH  # Partition key.
+      GlobalSecondaryIndexes:  # Secondary index for querying by category.
         - IndexName: CategoryIndex
           KeySchema:
             - AttributeName: category
@@ -46,9 +49,9 @@ Resources:
             - AttributeName: sortKey
               KeyType: RANGE
           Projection:
-            ProjectionType: ALL
+            ProjectionType: ALL  # Includes all attributes in the index.
 
-  # 2) Carts - 1 active cart per user
+  # DynamoDB Table to store user carts.
   CartsTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -64,11 +67,11 @@ Resources:
           KeyType: HASH
         - AttributeName: cartId
           KeyType: RANGE
-      TimeToLiveSpecification:
-        AttributeName: expiresAt   # epoch seconds in items
+      TimeToLiveSpecification:  # Enables automatic deletion of expired items.
+        AttributeName: expiresAt  # Attribute for TTL (epoch seconds).
         Enabled: true
 
-  # 3) Orders - confirmed orders + user-orders GSI
+  # DynamoDB Table to store confirmed orders.
   OrdersTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -84,7 +87,7 @@ Resources:
       KeySchema:
         - AttributeName: orderId
           KeyType: HASH
-      GlobalSecondaryIndexes:
+      GlobalSecondaryIndexes:  # Secondary index for querying user orders.
         - IndexName: UserOrdersIndex
           KeySchema:
             - AttributeName: userId
@@ -94,7 +97,7 @@ Resources:
           Projection:
             ProjectionType: ALL
 
-  # 4) Users - bot users / customers + lightweight session state
+  # DynamoDB Table to store user data and session state.
   UsersTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -106,30 +109,28 @@ Resources:
       KeySchema:
         - AttributeName: userId
           KeyType: HASH
-  # Bot Execution Role
+
+  # IAM Role for Lambda functions to access DynamoDB and other AWS services.
   BotExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub whatsapp-bot-execution-role-${AWS::StackName}
-      AssumeRolePolicyDocument:
+      RoleName: !Sub whatsapp-bot-execution-role-${AWS::StackName}  # Role name with stack name suffix.
+      AssumeRolePolicyDocument:  # Trust policy for Lambda service.
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
             Principal:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
-      ManagedPolicyArns:
+      ManagedPolicyArns:  # AWS managed policies for Lambda execution and X-Ray.
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
         - arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess
-
-      Policies:
+      Policies:  # Inline policy for DynamoDB and SSM Parameter Store access.
         - PolicyName: BotDynamoDBAccess
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
-              # ---------------------------
-              # DynamoDB Permissions
-              # ---------------------------
+              # Permissions for DynamoDB operations.
               - Effect: Allow
                 Action:
                   - dynamodb:GetItem
@@ -145,16 +146,12 @@ Resources:
                   - !GetAtt CartsTable.Arn
                   - !GetAtt OrdersTable.Arn
                   - !GetAtt UsersTable.Arn
-
               - Effect: Allow
                 Action: dynamodb:Query
                 Resource:
                   - !Sub "${OrdersTable.Arn}/index/UserOrdersIndex"
                   - !Sub "${ProductsTable.Arn}/index/CategoryIndex"
-
-              # ---------------------------
-              # SSM Parameter Store Permissions
-              # ---------------------------
+              # Permissions for SSM Parameter Store.
               - Effect: Allow
                 Action:
                   - ssm:GetParameter
@@ -163,15 +160,16 @@ Resources:
                   - arn:aws:ssm:ap-south-1:430118830579:parameter/dev-bot-verify-token
                   - arn:aws:ssm:ap-south-1:430118830579:parameter/dev-bot-system-user-token
                   - arn:aws:ssm:ap-south-1:430118830579:parameter/dev-bot-phone-number-id
-  # Webhook function to handle incoming POST requests from WhatsApp
+
+  # Lambda function to handle incoming POST requests from WhatsApp.
   WebhookFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: ./whatsapp-bot
-      Handler: post_data.post_handler
-      Role: !GetAtt BotExecutionRole.Arn
+      CodeUri: ./whatsapp-bot  # Path to the function code.
+      Handler: post_data.post_handler  # Entry point for the function.
+      Role: !GetAtt BotExecutionRole.Arn  # IAM role for the function.
 
-  # Verify function to handle GET requests for webhook verification
+  # Lambda function to handle GET requests for webhook verification.
   VerifyBotFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -179,6 +177,7 @@ Resources:
       Handler: app.get_handler
       Role: !GetAtt BotExecutionRole.Arn
 
+  # Lambda function to handle product-related operations.
   ProductsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -186,9 +185,26 @@ Resources:
       Handler: product_function.lambda_handler
       Role: !GetAtt BotExecutionRole.Arn
 
+  # Lambda function to handle cart-related operations.
   CartFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: ./whatsapp-bot
       Handler: cart_function.lambda_handler
+      Role: !GetAtt BotExecutionRole.Arn
+
+  # Lambda function to handle user-related operations.
+  UserFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./whatsapp-bot
+      Handler: user_function.lambda_handler
+      Role: !GetAtt BotExecutionRole.Arn
+
+  # Lambda function to handle order-related operations.
+  OrderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./whatsapp-bot
+      Handler: order_function.lambda_handler
       Role: !GetAtt BotExecutionRole.Arn
