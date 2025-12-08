@@ -1,0 +1,10 @@
+{
+  "operation": "LIST_PRODUCTS",
+  "filters": {
+    "category": "Puja Essentials"
+  },
+  "pagination": {
+    "page": 1,
+    "limit": 20
+  }
+}

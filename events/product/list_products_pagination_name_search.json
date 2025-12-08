@@ -1,0 +1,10 @@
+{
+  "operation": "LIST_PRODUCTS",
+  "filters": {
+    "search": "Divya Sutra Hawan "
+  },
+  "pagination": {
+    "page": 1,
+    "limit": 20
+  }
+}

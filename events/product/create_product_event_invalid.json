@@ -1,0 +1,8 @@
+{
+  "operation": "CREATE_PRODUCT",
+  "product": {
+    "name": "",
+    "price": null,
+    "category": ""
+  }
+}

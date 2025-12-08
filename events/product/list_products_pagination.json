@@ -1,0 +1,9 @@
+{
+  "operation": "LIST_PRODUCTS",
+  "filters": {},
+  "pagination": {
+    "page": 2,
+    "limit": 10,
+    "nextToken": "{\"productId\":\"KIT-GANESH-001\"}"
+  }
+}

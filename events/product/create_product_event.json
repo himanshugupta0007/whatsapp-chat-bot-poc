@@ -1,0 +1,30 @@
+{
+  "operation": "CREATE_PRODUCT",
+  "product": {
+    "name": "Pure Cow Ghee Diya Batti – Pack of 100",
+    "price": 199,
+    "category": "pooja",
+    "description": "Ready-to-use pure cow ghee diya batti for daily pooja and festivals.",
+    "currency": "INR",
+    "images": [
+      "https://yourcdn.com/images/ghee-diya-front.jpg",
+      "https://yourcdn.com/images/ghee-diya-back.jpg"
+    ],
+    "tags": [
+      "ghee diya",
+      "pooja items",
+      "festival essentials"
+    ],
+    "mrp": 249,
+    "weight": "250g",
+    "brand": "Divya Sutra",
+    "stock": 150,
+    "sku": "DS-GHEE-DIYA-100",
+    "type": "Essential",
+    "dimensions": {
+      "length": "10cm",
+      "width": "8cm",
+      "height": "5cm"
+    }
+  }
+}
