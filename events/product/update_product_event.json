@@ -1,0 +1,8 @@
+{
+  "operation": "UPDATE_PRODUCT",
+  "id": "KIT-HAWAN-001",
+  "updates": {
+    "price": 249,
+    "description": "Updated description for testing update product function."
+  }
+}
