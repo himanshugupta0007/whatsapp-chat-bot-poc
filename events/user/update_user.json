@@ -1,0 +1,8 @@
+{
+  "operation": "UPDATE_USER",
+  "userId": "user_6bc17faa52",
+  "payload": {
+    "name": "Updated Himanshu",
+    "language": "en-IN"
+  }
+}

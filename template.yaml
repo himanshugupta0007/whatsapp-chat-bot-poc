@@ -106,9 +106,18 @@ Resources:
       AttributeDefinitions:
         - AttributeName: userId
           AttributeType: S
+        - AttributeName: phone
+          AttributeType: S
       KeySchema:
         - AttributeName: userId
           KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: PhoneIndex
+          KeySchema:
+            - AttributeName: phone
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
 
   # IAM Role for Lambda functions to access DynamoDB and other AWS services.
   BotExecutionRole:
@@ -151,6 +160,7 @@ Resources:
                 Resource:
                   - !Sub "${OrdersTable.Arn}/index/UserOrdersIndex"
                   - !Sub "${ProductsTable.Arn}/index/CategoryIndex"
+                  - !Sub "${UsersTable.Arn}/index/PhoneIndex"
               # Permissions for SSM Parameter Store.
               - Effect: Allow
                 Action:

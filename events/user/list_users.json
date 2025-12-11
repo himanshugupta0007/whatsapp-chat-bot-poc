@@ -1,0 +1,5 @@
+{
+  "operation": "LIST_USERS",
+  "limit": 100,
+  "lastKey": null
+}

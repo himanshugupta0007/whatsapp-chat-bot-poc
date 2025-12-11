@@ -1,0 +1,4 @@
+{
+  "operation": "GET_USER_BY_PHONE",
+  "phone": "+919811112222"
+}

@@ -1,0 +1,10 @@
+{
+  "operation": "CREATE_USER",
+  "payload": {
+    "phone": "+919811112222",
+    "name": "Himanshu Gupta",
+    "channel": "WHATSAPP",
+    "language": "hi-IN",
+    "stage": "ACTIVE"
+  }
+}
