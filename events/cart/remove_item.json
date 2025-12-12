@@ -1,0 +1,6 @@
+{
+  "operation": "REMOVE_ITEM",
+  "userId": "user_123",
+  "cartId": "cart_da095dac",
+  "itemId": "item_ed2925b7"
+}

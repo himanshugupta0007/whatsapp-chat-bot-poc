@@ -1,0 +1,13 @@
+{
+  "operation": "ADD_ITEM",
+  "userId": "user_123",
+  "cartId": "cart_da095dac",
+  "payload": {
+    "productId": "prod_hawan_001",
+    "name": "Premium Hawan Samagri",
+    "quantity": 2,
+    "unitPrice": 599,
+    "gstRate": 5,
+    "customizationType": "STANDARD"
+  }
+}

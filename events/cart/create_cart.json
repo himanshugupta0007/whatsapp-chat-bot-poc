@@ -1,0 +1,5 @@
+{
+  "operation": "CREATE_CART",
+  "userId": "user_123",
+  "source": "WHATSAPP"
+}

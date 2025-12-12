@@ -1,0 +1,12 @@
+{
+  "operation": "ADD_ITEM",
+  "userId": "user_123",
+  "cartId": "cart_da095dac",
+  "payload": {
+    "productId": "prod_diya_001",
+    "name": "Cow Ghee Diya Batti",
+    "quantity": 1,
+    "unitPrice": 199,
+    "gstRate": 5
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "operation": "GET_CART",
+  "userId": "user_123",
+  "cartId": "cart_da095dac"
+}

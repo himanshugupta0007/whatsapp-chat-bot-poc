@@ -1,0 +1,9 @@
+{
+  "operation": "UPDATE_ITEM",
+  "userId": "user_123",
+  "cartId": "cart_da095dac",
+  "itemId": "item_ed2925b7",
+  "payload": {
+    "quantity": 3
+  }
+}
