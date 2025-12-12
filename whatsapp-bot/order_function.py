@@ -1,11 +1,56 @@
 import json
+import os
+import time
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
-import common_utility
+import boto3
+from botocore.exceptions import ClientError
+
+# --------------------------
+# ENV
+# --------------------------
+ORDERS_TABLE = os.environ.get("ORDERS_TABLE", "ds-orders")
+CARTS_TABLE = os.environ.get("CARTS_TABLE", "ds-carts")  # optional integration
+DEFAULT_SHIPPING = int(os.environ.get("DEFAULT_SHIPPING", "80"))
+DEFAULT_TAX = int(os.environ.get("DEFAULT_TAX", "0"))
+DEFAULT_CART_TTL_DAYS = int(os.environ.get("DEFAULT_CART_TTL_DAYS", "30"))
+
+DDB = boto3.resource("dynamodb")
+orders_table = DDB.Table(ORDERS_TABLE)
+carts_table = DDB.Table(CARTS_TABLE) if CARTS_TABLE else None
 
 
+# --------------------------
+# Common utility (inlined)
+# --------------------------
+def now_iso() -> str:
+    return datetime.utcnow().isoformat(timespec="seconds") + "Z"
+
+
+def response(status_code: int, body: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "statusCode": status_code,
+        "headers": {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+        },
+        "body": json.dumps(body, default=str),
+    }
+
+
+def _now_epoch() -> int:
+    return int(time.time())
+
+
+def _ttl_epoch(days: int) -> int:
+    return _now_epoch() + days * 24 * 60 * 60
+
+
+# --------------------------
+# Business helpers
+# --------------------------
 def calculate_totals(
         items: List[Dict[str, Any]],
         discount_amount: int = 0,
@@ -17,39 +62,63 @@ def calculate_totals(
     grand_total = sub_total - int(discount_amount) + int(shipping) + int(tax)
 
     return {
-        "subTotal": sub_total,
+        "subTotal": int(sub_total),
         "discount": int(discount_amount),
         "shipping": int(shipping),
-        "tax": int(tax),
-        "grandTotal": grand_total,
+        "tax": int(tax),  # ✅ stored and returned for invoice
+        "grandTotal": int(grand_total),
         "currency": currency,
     }
+
+
+def _safe_int(v: Any, default: int = 0) -> int:
+    try:
+        return int(v)
+    except Exception:
+        return default
+
+
+def _load_cart(cart_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Tries to load cart from ds-carts:
+    Expected cart shape (recommended):
+    {
+      "cartId": "cart_x",
+      "items": [...],
+      "totals": {...},
+      "currency": "INR",
+      "discount": 0,
+      "shipping": 0,
+      "tax": 0
+    }
+    """
+    if not carts_table:
+        return None
+
+    try:
+        res = carts_table.get_item(Key={"cartId": cart_id})
+        return res.get("Item")
+    except ClientError as e:
+        print("[LOAD_CART][ERROR]", e.response.get("Error", {}))
+        return None
+
+
+def _mock_items() -> List[Dict[str, Any]]:
+    return [
+        {
+            "productId": "prod_123",
+            "name": "Mock Hawan Samagri Kit",
+            "quantity": 2,
+            "unitPrice": 599,
+            "lineTotal": 2 * 599,
+        }
+    ]
 
 
 # --------------------------
 # Handlers
 # --------------------------
-
-
 def create_order(event: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    operation: CREATE_ORDER
-    event:
-    {
-      "operation": "CREATE_ORDER",
-      "payload": {
-        "cartId": "cart_ab12cd34",
-        "userId": "user_123",
-        "whatsappNumber": "+9198xxxxxx",
-        "shippingAddress": { ... },
-        "payment": {
-           "method": "RAZORPAY" | "COD",
-           "returnUrl": "https://..."
-        },
-        "metadata": { ... }
-      }
-    }
-    """
     payload = event.get("payload") or {}
 
     cart_id = payload.get("cartId")
@@ -60,39 +129,47 @@ def create_order(event: Dict[str, Any]) -> Dict[str, Any]:
     metadata = payload.get("metadata") or {}
 
     if not cart_id:
-        return common_utility.response(400, {"message": "cartId is required"})
+        return response(400, {"message": "cartId is required"})
     if not user_id and not whatsapp_number:
-        return common_utility.response(400, {"message": "Either userId or whatsappNumber is required"})
+        return response(400, {"message": "Either userId or whatsappNumber is required"})
 
-    # Mock: create a single fake item – later you will load items+totals from ds-carts
-    items: List[Dict[str, Any]] = [
-        {
-            "productId": "prod_123",
-            "name": "Mock Hawan Samagri Kit",
-            "quantity": 2,
-            "unitPrice": 599,
-            "lineTotal": 2 * 599,
-        }
-    ]
+    cart = _load_cart(cart_id)
 
-    # Simple discount example: 10% if subTotal >= 1000
-    discount_amount = 0
-    sub_total = sum(i["lineTotal"] for i in items)
-    if sub_total >= 1000:
-        discount_amount = int(sub_total * 0.10)
+    # Items & money inputs
+    if cart and isinstance(cart.get("items"), list) and len(cart["items"]) > 0:
+        items = cart["items"]
+        currency = cart.get("currency") or "INR"
+        discount_amount = _safe_int(cart.get("discount") or (cart.get("totals") or {}).get("discount"), 0)
+        shipping = _safe_int(cart.get("shipping") or (cart.get("totals") or {}).get("shipping"), DEFAULT_SHIPPING)
+        tax = _safe_int(cart.get("tax") or (cart.get("totals") or {}).get("tax"), DEFAULT_TAX)
+    else:
+        # fallback mock
+        items = _mock_items()
+        currency = "INR"
 
-    shipping = 80  # mock shipping
-    tax = 0  # for now
+        # Simple discount example: 10% if subTotal >= 1000
+        discount_amount = 0
+        sub_total = sum(int(i.get("lineTotal", 0)) for i in items)
+        if sub_total >= 1000:
+            discount_amount = int(sub_total * 0.10)
 
-    totals = calculate_totals(items, discount_amount=discount_amount, shipping=shipping, tax=tax)
+        shipping = DEFAULT_SHIPPING
+        tax = DEFAULT_TAX
+
+    totals = calculate_totals(
+        items,
+        discount_amount=discount_amount,
+        shipping=shipping,
+        tax=tax,
+        currency=currency,
+    )
 
     order_id = f"ord_{uuid.uuid4().hex[:10]}"
     order_number = f"DS-{datetime.utcnow().strftime('%Y%m%d')}-{uuid.uuid4().hex[:4].upper()}"
-    now = common_utility.now_iso()
+    now = now_iso()
 
     method = (payment_req.get("method") or "RAZORPAY").upper()
 
-    # Mock payment object
     if method == "RAZORPAY":
         payment = {
             "method": "RAZORPAY",
@@ -132,7 +209,7 @@ def create_order(event: Dict[str, Any]) -> Dict[str, Any]:
         "whatsappNumber": whatsapp_number,
         "status": status,
         "items": items,
-        "totals": totals,
+        "totals": totals,  # ✅ includes tax for invoice
         "shippingAddress": shipping_address,
         "payment": payment,
         "couponCode": "AUTO10" if discount_amount > 0 else None,
@@ -140,270 +217,162 @@ def create_order(event: Dict[str, Any]) -> Dict[str, Any]:
         "metadata": metadata,
         "createdAt": now,
         "updatedAt": now,
+        # Useful for cleanup/analytics (optional)
+        "ttl": _ttl_epoch(DEFAULT_CART_TTL_DAYS),
     }
 
-    # Later: put this order into ds-orders and update UserOrdersIndex
-    return common_utility.response(201, order)
+    try:
+        # ensure userId exists for GSI queries
+        if not order.get("userId") and whatsapp_number:
+            # you can still store without userId, but LIST_ORDERS by userId won't work.
+            pass
+
+        orders_table.put_item(
+            Item=order,
+            ConditionExpression="attribute_not_exists(orderId)",
+        )
+    except ClientError as e:
+        code = e.response.get("Error", {}).get("Code")
+        if code == "ConditionalCheckFailedException":
+            return response(409, {"message": "Order already exists", "orderId": order_id})
+        print("[CREATE_ORDER][ERROR]", e.response.get("Error", {}))
+        return response(500, {"message": "Failed to create order", "error": str(e)})
+
+    return response(201, order)
 
 
 def get_order(event: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    operation: GET_ORDER
-    {
-      "operation": "GET_ORDER",
-      "orderId": "ord_001"
-    }
-    """
     order_id = event.get("orderId")
     if not order_id:
-        return common_utility.response(400, {"message": "orderId is required"})
+        return response(400, {"message": "orderId is required"})
 
-    # Mock items
-    items = [
-        {
-            "productId": "prod_123",
-            "name": "Mock Hawan Samagri Kit",
-            "quantity": 1,
-            "unitPrice": 599,
-            "lineTotal": 599,
-        }
-    ]
-
-    totals = calculate_totals(items, discount_amount=0, shipping=80, tax=0)
-
-    order = {
-        "orderId": order_id,
-        "orderNumber": "DS-20251203-ABCD",
-        "cartId": "cart_mock123",
-        "userId": "user_123",
-        "whatsappNumber": "+919811112222",
-        "status": "PAID",
-        "items": items,
-        "totals": totals,
-        "shippingAddress": {
-            "name": "Mock User",
-            "phone": "+919811112222",
-            "line1": "Mock Address Line 1",
-            "line2": "",
-            "city": "Delhi",
-            "state": "Delhi",
-            "pincode": "110085",
-            "country": "IN",
-        },
-        "payment": {
-            "method": "RAZORPAY",
-            "status": "SUCCESS",
-            "razorpayOrderId": "order_mock123",
-            "razorpayPaymentId": "pay_mock123",
-            "amount": totals["grandTotal"],
-            "currency": totals["currency"],
-        },
-        "couponCode": None,
-        "discountReason": None,
-        "metadata": {
-            "source": "WHATSAPP"
-        },
-        "createdAt": "2025-12-03T10:00:00Z",
-        "updatedAt": "2025-12-03T10:10:00Z",
-    }
-
-    return common_utility.response(200, order)
+    try:
+        res = orders_table.get_item(Key={"orderId": order_id})
+        item = res.get("Item")
+        if not item:
+            return response(404, {"message": "Order not found", "orderId": order_id})
+        return response(200, item)
+    except ClientError as e:
+        print("[GET_ORDER][ERROR]", e.response.get("Error", {}))
+        return response(500, {"message": "Failed to fetch order", "error": str(e)})
 
 
 def list_orders(event: Dict[str, Any]) -> Dict[str, Any]:
     """
-    operation: LIST_ORDERS
-    {
-      "operation": "LIST_ORDERS",
-      "filters": {
-        "userId": "user_123",
-        "whatsappNumber": "",
-        "status": ""
-      },
-      "pagination": {
-        "page": "1",
-        "limit": "10"
-      }
-    }
+    Uses GSI UserOrdersIndex => requires userId.
+    NOTE: If you want list by whatsappNumber efficiently, add a GSI on whatsappNumber.
     """
     filters = event.get("filters") or {}
     pagination = event.get("pagination") or {}
 
     user_id = filters.get("userId") or None
-    whatsapp = filters.get("whatsappNumber") or None
     status_filter = filters.get("status") or None
 
-    page = int(pagination.get("page", "1"))
-    limit = int(pagination.get("limit", "10"))
+    limit = max(1, min(int(pagination.get("limit", "10")), 50))
+    next_token = pagination.get("nextToken")  # DynamoDB LastEvaluatedKey as JSON string
 
-    # Mock list of two orders
-    items_for_order1 = [
-        {
-            "productId": "prod_123",
-            "name": "Mock Hawan Samagri Kit",
-            "quantity": 1,
-            "unitPrice": 599,
-            "lineTotal": 599,
+    if not user_id:
+        return response(
+            400,
+            {
+                "message": "filters.userId is required for LIST_ORDERS (UserOrdersIndex).",
+                "hint": "Add a GSI on whatsappNumber if you want LIST_ORDERS by whatsappNumber without scanning.",
+            },
+        )
+
+    eks = None
+    if next_token:
+        try:
+            eks = json.loads(next_token)
+        except Exception:
+            return response(400, {"message": "pagination.nextToken must be valid JSON of LastEvaluatedKey"})
+
+    try:
+        from boto3.dynamodb.conditions import Key, Attr
+
+        query_kwargs = {
+            "IndexName": "UserOrdersIndex",
+            "KeyConditionExpression": Key("userId").eq(user_id),
+            "ScanIndexForward": False,  # newest first (createdAt desc)
+            "Limit": limit,
         }
-    ]
-    items_for_order2 = [
-        {
-            "productId": "prod_456",
-            "name": "Mock Ghee Diya Batti",
-            "quantity": 2,
-            "unitPrice": 199,
-            "lineTotal": 398,
+        if eks:
+            query_kwargs["ExclusiveStartKey"] = eks
+
+        if status_filter:
+            query_kwargs["FilterExpression"] = Attr("status").eq(status_filter)
+
+        res = orders_table.query(**query_kwargs)
+
+        items = res.get("Items", [])
+        lek = res.get("LastEvaluatedKey")
+        out = {
+            "items": items,
+            "limit": limit,
+            "nextToken": json.dumps(lek) if lek else None,
         }
-    ]
+        return response(200, out)
 
-    totals1 = calculate_totals(items_for_order1, discount_amount=0, shipping=80)
-    totals2 = calculate_totals(items_for_order2, discount_amount=0, shipping=80)
-
-    orders = [
-        {
-            "orderId": "ord_mock_1",
-            "orderNumber": "DS-20251203-0001",
-            "cartId": "cart_mock_1",
-            "userId": user_id or "user_123",
-            "whatsappNumber": whatsapp or "+919811112222",
-            "status": "DELIVERED",
-            "items": items_for_order1,
-            "totals": totals1,
-            "createdAt": "2025-12-01T10:00:00Z",
-            "updatedAt": "2025-12-02T10:00:00Z",
-        },
-        {
-            "orderId": "ord_mock_2",
-            "orderNumber": "DS-20251203-0002",
-            "cartId": "cart_mock_2",
-            "userId": user_id or "user_123",
-            "whatsappNumber": whatsapp or "+919811112222",
-            "status": "PAID",
-            "items": items_for_order2,
-            "totals": totals2,
-            "createdAt": "2025-12-02T11:00:00Z",
-            "updatedAt": "2025-12-02T12:00:00Z",
-        },
-    ]
-
-    # Ignore status filter & pagination in mock; keep shape ready
-    response = {
-        "items": orders,
-        "page": page,
-        "limit": limit,
-        "total": len(orders),
-    }
-
-    return common_utility.response(200, response)
+    except ClientError as e:
+        print("[LIST_ORDERS][ERROR]", e.response.get("Error", {}))
+        return response(500, {"message": "Failed to list orders", "error": str(e)})
 
 
 def update_order_status(event: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    operation: UPDATE_ORDER_STATUS
-    {
-      "operation": "UPDATE_ORDER_STATUS",
-      "orderId": "ord_001",
-      "payload": {
-        "status": "PAID",
-        "payment": {
-          "status": "SUCCESS",
-          "razorpayPaymentId": "pay_xxx"
-        }
-      }
-    }
-    """
     order_id = event.get("orderId")
     payload = event.get("payload") or {}
 
     if not order_id:
-        return common_utility.response(400, {"message": "orderId is required"})
+        return response(400, {"message": "orderId is required"})
 
-    new_status = payload.get("status") or "PAID"
+    new_status = payload.get("status")
     payment_update = payload.get("payment") or {}
 
-    # Mock original order
-    items = [
-        {
-            "productId": "prod_123",
-            "name": "Mock Hawan Samagri Kit",
-            "quantity": 1,
-            "unitPrice": 599,
-            "lineTotal": 599,
-        }
-    ]
-    totals = calculate_totals(items, discount_amount=0, shipping=80)
+    if not new_status and not payment_update:
+        return response(400, {"message": "payload.status and/or payload.payment is required"})
 
-    payment = {
-        "method": "RAZORPAY",
-        "status": payment_update.get("status", "SUCCESS"),
-        "razorpayOrderId": "order_mock123",
-        "razorpayPaymentId": payment_update.get("razorpayPaymentId", "pay_mock123"),
-        "amount": totals["grandTotal"],
-        "currency": totals["currency"],
-    }
+    # Build dynamic update expression
+    update_parts = []
+    expr_vals: Dict[str, Any] = {":u": now_iso()}
+    expr_names: Dict[str, str] = {"#updatedAt": "updatedAt"}
 
-    order = {
-        "orderId": order_id,
-        "orderNumber": "DS-20251203-ABCD",
-        "cartId": "cart_mock123",
-        "userId": "user_123",
-        "whatsappNumber": "+919811112222",
-        "status": new_status,
-        "items": items,
-        "totals": totals,
-        "shippingAddress": {
-            "name": "Mock User",
-            "phone": "+919811112222",
-            "line1": "Mock Address Line 1",
-            "line2": "",
-            "city": "Delhi",
-            "state": "Delhi",
-            "pincode": "110085",
-            "country": "IN",
-        },
-        "payment": payment,
-        "couponCode": None,
-        "discountReason": None,
-        "metadata": {
-            "source": "WHATSAPP"
-        },
-        "createdAt": "2025-12-03T10:00:00Z",
-        "updatedAt": common_utility.now_iso(),
-    }
+    update_parts.append("#updatedAt = :u")
 
-    # later: update ds-orders with new status/payment
-    return common_utility.response(200, order)
+    if new_status:
+        expr_names["#status"] = "status"
+        expr_vals[":s"] = new_status
+        update_parts.append("#status = :s")
+
+    if payment_update:
+        expr_names["#payment"] = "payment"
+        expr_vals[":p"] = payment_update
+        update_parts.append("#payment = :p")
+
+    update_expr = "SET " + ", ".join(update_parts)
+
+    try:
+        res = orders_table.update_item(
+            Key={"orderId": order_id},
+            UpdateExpression=update_expr,
+            ExpressionAttributeNames=expr_names,
+            ExpressionAttributeValues=expr_vals,
+            ConditionExpression="attribute_exists(orderId)",
+            ReturnValues="ALL_NEW",
+        )
+        return response(200, res.get("Attributes", {}))
+
+    except ClientError as e:
+        code = e.response.get("Error", {}).get("Code")
+        if code == "ConditionalCheckFailedException":
+            return response(404, {"message": "Order not found", "orderId": order_id})
+        print("[UPDATE_ORDER_STATUS][ERROR]", e.response.get("Error", {}))
+        return response(500, {"message": "Failed to update order", "error": str(e)})
 
 
 # --------------------------
 # Lambda entrypoint
 # --------------------------
-
-
 def lambda_handler(event, context):
-    """
-    Expected shapes (via VTL):
-
-    POST /orders:
-      { "operation": "CREATE_ORDER", "payload": { ... } }
-
-    GET /orders/{orderId}:
-      { "operation": "GET_ORDER", "orderId": "ord_001" }
-
-    GET /orders?userId=...:
-      {
-        "operation": "LIST_ORDERS",
-        "filters": { ... },
-        "pagination": { ... }
-      }
-
-    PATCH /orders/{orderId}/status:
-      {
-        "operation": "UPDATE_ORDER_STATUS",
-        "orderId": "ord_001",
-        "payload": { ... }
-      }
-    """
     print("Received event:", json.dumps(event))
 
     op = event.get("operation")
@@ -420,4 +389,4 @@ def lambda_handler(event, context):
     if op == "UPDATE_ORDER_STATUS":
         return update_order_status(event)
 
-    return common_utility.response(400, {"message": f"Unknown operation: {op}"})
+    return response(400, {"message": f"Unknown operation: {op}"})
