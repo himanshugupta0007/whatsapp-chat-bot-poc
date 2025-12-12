@@ -14,7 +14,7 @@ Globals:
     Tracing: Active  # Enables AWS X-Ray tracing for Lambda functions.
     Architectures: [ x86_64 ]  # Specifies the architecture for Lambda functions.
     Environment:
-      Variables:  # Environment variables for Lambda functions.
+      Variables: # Environment variables for Lambda functions.
         VERIFY_TOKEN: dev-bot-verify-token
         APP_SECRET: dev-bot-meta-api-key
         PHONE_ID: dev-bot-phone-number-id
@@ -31,17 +31,17 @@ Resources:
     Properties:
       TableName: ds-products  # Name of the DynamoDB table.
       BillingMode: PAY_PER_REQUEST  # On-demand billing mode.
-      AttributeDefinitions:  # Attributes for the table.
+      AttributeDefinitions: # Attributes for the table.
         - AttributeName: productId
           AttributeType: S  # String type.
         - AttributeName: category
           AttributeType: S
         - AttributeName: sortKey
           AttributeType: S
-      KeySchema:  # Primary key schema.
+      KeySchema: # Primary key schema.
         - AttributeName: productId
           KeyType: HASH  # Partition key.
-      GlobalSecondaryIndexes:  # Secondary index for querying by category.
+      GlobalSecondaryIndexes: # Secondary index for querying by category.
         - IndexName: CategoryIndex
           KeySchema:
             - AttributeName: category
@@ -67,35 +67,45 @@ Resources:
           KeyType: HASH
         - AttributeName: cartId
           KeyType: RANGE
-      TimeToLiveSpecification:  # Enables automatic deletion of expired items.
+      TimeToLiveSpecification: # Enables automatic deletion of expired items.
         AttributeName: expiresAt  # Attribute for TTL (epoch seconds).
         Enabled: true
 
   # DynamoDB Table to store confirmed orders.
-  OrdersTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: ds-orders
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: orderId
-          AttributeType: S
-        - AttributeName: userId
-          AttributeType: S
-        - AttributeName: createdAt
-          AttributeType: S
-      KeySchema:
-        - AttributeName: orderId
-          KeyType: HASH
-      GlobalSecondaryIndexes:  # Secondary index for querying user orders.
-        - IndexName: UserOrdersIndex
-          KeySchema:
-            - AttributeName: userId
-              KeyType: HASH
-            - AttributeName: createdAt
-              KeyType: RANGE
-          Projection:
-            ProjectionType: ALL
+OrdersTable:
+  Type: AWS::DynamoDB::Table
+  Properties:
+    TableName: ds-orders
+    BillingMode: PAY_PER_REQUEST
+    AttributeDefinitions:
+      - AttributeName: orderId
+        AttributeType: S
+      - AttributeName: userId
+        AttributeType: S
+      - AttributeName: whatsappNumber     # ✅ add
+        AttributeType: S
+      - AttributeName: createdAt
+        AttributeType: S
+    KeySchema:
+      - AttributeName: orderId
+        KeyType: HASH
+    GlobalSecondaryIndexes:
+      - IndexName: UserOrdersIndex
+        KeySchema:
+          - AttributeName: userId
+            KeyType: HASH
+          - AttributeName: createdAt
+            KeyType: RANGE
+        Projection:
+          ProjectionType: ALL
+      - IndexName: WhatsAppOrdersIndex     # ✅ add
+        KeySchema:
+          - AttributeName: whatsappNumber
+            KeyType: HASH
+          - AttributeName: createdAt
+            KeyType: RANGE
+        Projection:
+          ProjectionType: ALL
 
   # DynamoDB Table to store user data and session state.
   UsersTable:
@@ -124,17 +134,17 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       RoleName: !Sub whatsapp-bot-execution-role-${AWS::StackName}  # Role name with stack name suffix.
-      AssumeRolePolicyDocument:  # Trust policy for Lambda service.
+      AssumeRolePolicyDocument: # Trust policy for Lambda service.
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
             Principal:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
-      ManagedPolicyArns:  # AWS managed policies for Lambda execution and X-Ray.
+      ManagedPolicyArns: # AWS managed policies for Lambda execution and X-Ray.
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
         - arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess
-      Policies:  # Inline policy for DynamoDB and SSM Parameter Store access.
+      Policies: # Inline policy for DynamoDB and SSM Parameter Store access.
         - PolicyName: BotDynamoDBAccess
           PolicyDocument:
             Version: '2012-10-17'
