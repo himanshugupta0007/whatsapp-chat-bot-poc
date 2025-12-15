@@ -1,0 +1,11 @@
+{
+  "operation": "LIST_ORDERS",
+  "filters": {
+    "whatsappNumber": "+919811112222",
+    "status": ""
+  },
+  "pagination": {
+    "limit": "10",
+    "nextToken": null
+  }
+}

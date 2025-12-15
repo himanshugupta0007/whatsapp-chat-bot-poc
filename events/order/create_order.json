@@ -1,0 +1,26 @@
+{
+  "operation": "CREATE_ORDER",
+  "payload": {
+    "cartId": "cart_da095dac",
+    "userId": "user_123",
+    "whatsappNumber": "+919811112222",
+    "shippingAddress": {
+      "name": "Himanshu Gupta",
+      "phone": "+919811112222",
+      "line1": "Rohini Sector 8",
+      "line2": "",
+      "city": "Delhi",
+      "state": "Delhi",
+      "pincode": "110085",
+      "country": "IN"
+    },
+    "payment": {
+      "method": "RAZORPAY",
+      "returnUrl": "https://example.com/payment-success"
+    },
+    "metadata": {
+      "source": "WHATSAPP",
+      "campaign": "JANMASHTAMI"
+    }
+  }
+}

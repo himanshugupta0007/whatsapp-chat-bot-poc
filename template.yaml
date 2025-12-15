@@ -67,45 +67,53 @@ Resources:
           KeyType: HASH
         - AttributeName: cartId
           KeyType: RANGE
-      TimeToLiveSpecification: # Enables automatic deletion of expired items.
-        AttributeName: expiresAt  # Attribute for TTL (epoch seconds).
-        Enabled: true
 
+      GlobalSecondaryIndexes:
+        - IndexName: CartIdIndex
+          KeySchema:
+            - AttributeName: cartId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
   # DynamoDB Table to store confirmed orders.
-OrdersTable:
-  Type: AWS::DynamoDB::Table
-  Properties:
-    TableName: ds-orders
-    BillingMode: PAY_PER_REQUEST
-    AttributeDefinitions:
-      - AttributeName: orderId
-        AttributeType: S
-      - AttributeName: userId
-        AttributeType: S
-      - AttributeName: whatsappNumber     # ✅ add
-        AttributeType: S
-      - AttributeName: createdAt
-        AttributeType: S
-    KeySchema:
-      - AttributeName: orderId
-        KeyType: HASH
-    GlobalSecondaryIndexes:
-      - IndexName: UserOrdersIndex
-        KeySchema:
-          - AttributeName: userId
-            KeyType: HASH
-          - AttributeName: createdAt
-            KeyType: RANGE
-        Projection:
-          ProjectionType: ALL
-      - IndexName: WhatsAppOrdersIndex     # ✅ add
-        KeySchema:
-          - AttributeName: whatsappNumber
-            KeyType: HASH
-          - AttributeName: createdAt
-            KeyType: RANGE
-        Projection:
-          ProjectionType: ALL
+  OrdersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: ds-orders
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: orderId
+          AttributeType: S
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: whatsappNumber     # ✅ add
+          AttributeType: S
+        - AttributeName: createdAt
+          AttributeType: S
+      KeySchema:
+        - AttributeName: orderId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: UserOrdersIndex
+          KeySchema:
+            - AttributeName: userId
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: WhatsAppOrdersIndex     # ✅ add
+          KeySchema:
+            - AttributeName: whatsappNumber
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
 
   # DynamoDB Table to store user data and session state.
   UsersTable:
@@ -169,8 +177,10 @@ OrdersTable:
                 Action: dynamodb:Query
                 Resource:
                   - !Sub "${OrdersTable.Arn}/index/UserOrdersIndex"
+                  - !Sub "${OrdersTable.Arn}/index/WhatsAppOrdersIndex"
                   - !Sub "${ProductsTable.Arn}/index/CategoryIndex"
                   - !Sub "${UsersTable.Arn}/index/PhoneIndex"
+                  - !Sub "${CartsTable.Arn}/index/CartIdIndex"
               # Permissions for SSM Parameter Store.
               - Effect: Allow
                 Action:

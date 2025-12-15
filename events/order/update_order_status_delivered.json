@@ -1,0 +1,7 @@
+{
+  "operation": "UPDATE_ORDER_STATUS",
+  "orderId": "ord_e58742e86e",
+  "payload": {
+    "status": "DELIVERED"
+  }
+}

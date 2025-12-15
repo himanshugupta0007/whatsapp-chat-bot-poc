@@ -11,7 +11,7 @@ from botocore.exceptions import ClientError
 # --------------------------
 # ENV
 # --------------------------
-ORDERS_TABLE = os.environ.get("ORDERS_TABLE", "ds-orders")
+ORDERS_TABLE = os.environ.get("ORDER_TABLE", "ds-orders")
 CARTS_TABLE = os.environ.get("CARTS_TABLE", "ds-carts")  # optional integration
 DEFAULT_SHIPPING = int(os.environ.get("DEFAULT_SHIPPING", "80"))
 DEFAULT_TAX = int(os.environ.get("DEFAULT_TAX", "0"))
@@ -19,7 +19,11 @@ DEFAULT_CART_TTL_DAYS = int(os.environ.get("DEFAULT_CART_TTL_DAYS", "30"))
 
 DDB = boto3.resource("dynamodb")
 orders_table = DDB.Table(ORDERS_TABLE)
-carts_table = DDB.Table(CARTS_TABLE) if CARTS_TABLE else None
+try:
+    carts_table = DDB.Table(CARTS_TABLE) if CARTS_TABLE else None
+except Exception as e:
+    print(f"[ERROR] Failed to initialize carts_table: {e}")
+    carts_table = None
 
 
 # --------------------------
@@ -78,26 +82,30 @@ def _safe_int(v: Any, default: int = 0) -> int:
         return default
 
 
-def _load_cart(cart_id: str) -> Optional[Dict[str, Any]]:
-    """
-    Tries to load cart from ds-carts:
-    Expected cart shape (recommended):
-    {
-      "cartId": "cart_x",
-      "items": [...],
-      "totals": {...},
-      "currency": "INR",
-      "discount": 0,
-      "shipping": 0,
-      "tax": 0
-    }
-    """
+def _load_cart(cart_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
     if not carts_table:
+        print(f"[LOAD_CART][ERROR] carts_table is None, CARTS_TABLE={CARTS_TABLE}")
         return None
 
     try:
-        res = carts_table.get_item(Key={"cartId": cart_id})
-        return res.get("Item")
+        # Best path: use primary key if userId is available
+        if user_id:
+            res = carts_table.get_item(Key={"userId": user_id, "cartId": cart_id})
+            item = res.get("Item")
+            if item:
+                return item
+
+        # Fallback: query GSI by cartId
+        from boto3.dynamodb.conditions import Key
+
+        res = carts_table.query(
+            IndexName="CartIdIndex",
+            KeyConditionExpression=Key("cartId").eq(cart_id),
+            Limit=1,
+        )
+        items = res.get("Items", [])
+        return items[0] if items else None
+
     except ClientError as e:
         print("[LOAD_CART][ERROR]", e.response.get("Error", {}))
         return None
@@ -133,7 +141,7 @@ def create_order(event: Dict[str, Any]) -> Dict[str, Any]:
     if not user_id and not whatsapp_number:
         return response(400, {"message": "Either userId or whatsappNumber is required"})
 
-    cart = _load_cart(cart_id)
+    cart = _load_cart(cart_id, user_id)
 
     # Items & money inputs
     if cart and isinstance(cart.get("items"), list) and len(cart["items"]) > 0:
@@ -143,18 +151,8 @@ def create_order(event: Dict[str, Any]) -> Dict[str, Any]:
         shipping = _safe_int(cart.get("shipping") or (cart.get("totals") or {}).get("shipping"), DEFAULT_SHIPPING)
         tax = _safe_int(cart.get("tax") or (cart.get("totals") or {}).get("tax"), DEFAULT_TAX)
     else:
-        # fallback mock
-        items = _mock_items()
-        currency = "INR"
-
-        # Simple discount example: 10% if subTotal >= 1000
-        discount_amount = 0
-        sub_total = sum(int(i.get("lineTotal", 0)) for i in items)
-        if sub_total >= 1000:
-            discount_amount = int(sub_total * 0.10)
-
-        shipping = DEFAULT_SHIPPING
-        tax = DEFAULT_TAX
+        print("[WARN] Cart not found or invalid.")
+        return response(500, {"message": "Something went wrong. Please try again"})
 
     totals = calculate_totals(
         items,
@@ -259,26 +257,20 @@ def get_order(event: Dict[str, Any]) -> Dict[str, Any]:
 
 def list_orders(event: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Uses GSI UserOrdersIndex => requires userId.
-    NOTE: If you want list by whatsappNumber efficiently, add a GSI on whatsappNumber.
+    Uses GSI UserOrdersIndex for userId or WhatsAppOrdersIndex for whatsappNumber.
     """
     filters = event.get("filters") or {}
     pagination = event.get("pagination") or {}
 
     user_id = filters.get("userId") or None
+    whatsapp_number = filters.get("whatsappNumber") or None
     status_filter = filters.get("status") or None
 
     limit = max(1, min(int(pagination.get("limit", "10")), 50))
-    next_token = pagination.get("nextToken")  # DynamoDB LastEvaluatedKey as JSON string
+    next_token = pagination.get("nextToken")
 
-    if not user_id:
-        return response(
-            400,
-            {
-                "message": "filters.userId is required for LIST_ORDERS (UserOrdersIndex).",
-                "hint": "Add a GSI on whatsappNumber if you want LIST_ORDERS by whatsappNumber without scanning.",
-            },
-        )
+    if not user_id and not whatsapp_number:
+        return response(400, {"message": "Either filters.userId or filters.whatsappNumber is required"})
 
     eks = None
     if next_token:
@@ -290,12 +282,22 @@ def list_orders(event: Dict[str, Any]) -> Dict[str, Any]:
     try:
         from boto3.dynamodb.conditions import Key, Attr
 
-        query_kwargs = {
-            "IndexName": "UserOrdersIndex",
-            "KeyConditionExpression": Key("userId").eq(user_id),
-            "ScanIndexForward": False,  # newest first (createdAt desc)
+        if user_id:
+            query_kwargs = {
+                "IndexName": "UserOrdersIndex",
+                "KeyConditionExpression": Key("userId").eq(user_id),
+            }
+        else:
+            query_kwargs = {
+                "IndexName": "WhatsAppOrdersIndex",
+                "KeyConditionExpression": Key("whatsappNumber").eq(whatsapp_number),
+            }
+
+        query_kwargs.update({
+            "ScanIndexForward": False,
             "Limit": limit,
-        }
+        })
+
         if eks:
             query_kwargs["ExclusiveStartKey"] = eks
 
@@ -316,7 +318,6 @@ def list_orders(event: Dict[str, Any]) -> Dict[str, Any]:
     except ClientError as e:
         print("[LIST_ORDERS][ERROR]", e.response.get("Error", {}))
         return response(500, {"message": "Failed to list orders", "error": str(e)})
-
 
 def update_order_status(event: Dict[str, Any]) -> Dict[str, Any]:
     order_id = event.get("orderId")

@@ -1,0 +1,11 @@
+{
+  "operation": "LIST_ORDERS",
+  "filters": {
+    "userId": "user_123",
+    "status": ""
+  },
+  "pagination": {
+    "limit": "10",
+    "nextToken": null
+  }
+}
