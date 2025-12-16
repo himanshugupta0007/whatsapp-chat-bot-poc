@@ -29,10 +29,7 @@ class DecimalEncoder(json.JSONEncoder):
 def build_response(status_code: int, body: dict):
     return {
         "statusCode": status_code,
-        "headers": {
-            "Content-Type": "application/json",
-        },
-        "body": json.dumps(body, cls=DecimalEncoder),
+        "body": body
     }
 
 

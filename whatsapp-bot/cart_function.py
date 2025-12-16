@@ -85,11 +85,7 @@ def calculate_tax_inclusive(items: List[Dict[str, Any]]) -> Dict[str, Any]:
 def _response(status_code: int, body: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "statusCode": status_code,
-        "headers": {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*",
-        },
-        "body": json.dumps(body, default=str),
+        "body": body
     }
 
 

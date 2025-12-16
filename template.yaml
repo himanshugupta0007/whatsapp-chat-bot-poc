@@ -160,6 +160,7 @@ Resources:
               # Permissions for DynamoDB operations.
               - Effect: Allow
                 Action:
+                  - dynamodb:Scan
                   - dynamodb:GetItem
                   - dynamodb:PutItem
                   - dynamodb:UpdateItem
