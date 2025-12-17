@@ -1,0 +1,677 @@
+---
+swagger: "2.0"
+info:
+  description: "Dev API fort Divya Sutra"
+  version: "2025-12-17T08:47:08Z"
+  title: "divya-sutra-api-dev"
+host: "8hurg54gn8.execute-api.ap-south-1.amazonaws.com"
+basePath: "/dev"
+schemes:
+- "https"
+paths:
+  /api/v1/divyasutra/bot:
+    get:
+      produces:
+      - "application/json"
+      responses:
+        "200":
+          description: "200 response"
+          schema:
+            $ref: "#/definitions/Empty"
+      x-amazon-apigateway-integration:
+        uri: "arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:430118830579:function:whats-app-chat-bot-poc-VerifyBotFunction-SBrtr5Mg7zky/invocations"
+        httpMethod: "POST"
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        responseTransferMode: "BUFFERED"
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws_proxy"
+    post:
+      produces:
+      - "application/json"
+      responses:
+        "200":
+          description: "200 response"
+          schema:
+            $ref: "#/definitions/Empty"
+      x-amazon-apigateway-integration:
+        uri: "arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:430118830579:function:whats-app-chat-bot-poc-WebhookFunction-7OQWWwfHAJ1r/invocations"
+        httpMethod: "POST"
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        responseTransferMode: "BUFFERED"
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws_proxy"
+  /api/v1/divyasutra/store/cart:
+    post:
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "userId"
+        in: "query"
+        required: false
+        type: "string"
+      - name: "source"
+        in: "query"
+        required: false
+        type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          schema:
+            $ref: "#/definitions/Empty"
+      x-amazon-apigateway-integration:
+        uri: "arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:430118830579:function:whats-app-chat-bot-poc-CartFunction-5m6SZ22HrJr9/invocations"
+        httpMethod: "POST"
+        responses:
+          default:
+            statusCode: "200"
+        requestTemplates:
+          application/json: "{\r\n  \"operation\": \"CREATE_CART\",\r\n  \"userId\"\
+            : \"$util.escapeJavaScript($input.params('userId'))\",\r\n  \"source\"\
+            : \"$util.escapeJavaScript($input.params('source'))\"\r\n}"
+        passthroughBehavior: "when_no_templates"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws"
+  /api/v1/divyasutra/store/cart/coupon:
+    post:
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      responses:
+        "200":
+          description: "200 response"
+          schema:
+            $ref: "#/definitions/Empty"
+      x-amazon-apigateway-integration:
+        responses:
+          default:
+            statusCode: "200"
+        requestTemplates:
+          application/json: "{\"statusCode\": 200}"
+        passthroughBehavior: "when_no_match"
+        type: "mock"
+  /api/v1/divyasutra/store/cart/{cartId}:
+    get:
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "cartId"
+        in: "path"
+        required: true
+        type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          schema:
+            $ref: "#/definitions/Empty"
+      x-amazon-apigateway-integration:
+        uri: "arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:430118830579:function:whats-app-chat-bot-poc-CartFunction-5m6SZ22HrJr9/invocations"
+        httpMethod: "POST"
+        responses:
+          default:
+            statusCode: "200"
+        requestParameters:
+          integration.request.path.cartId: "method.request.path.cartId"
+        requestTemplates:
+          application/json: "{\r\n  \"operation\": \"GET_CART\",\r\n  \"cartId\":\
+            \ \"$util.escapeJavaScript($input.params('cartId'))\"\r\n}"
+        passthroughBehavior: "when_no_templates"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws"
+  /api/v1/divyasutra/store/cart/{cartId}/items:
+    post:
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "cartId"
+        in: "path"
+        required: true
+        type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          schema:
+            $ref: "#/definitions/Empty"
+      x-amazon-apigateway-integration:
+        uri: "arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:430118830579:function:whats-app-chat-bot-poc-CartFunction-5m6SZ22HrJr9/invocations"
+        httpMethod: "POST"
+        responses:
+          default:
+            statusCode: "200"
+        requestParameters:
+          integration.request.path.cartId: "method.request.path.cartId"
+        requestTemplates:
+          application/json: "{\r\n  \"operation\": \"ADD_ITEM\",\r\n  \"cartId\":\
+            \ \"$input.params('cartId')\",\r\n  \"payload\": $input.json('$')\r\n}"
+        passthroughBehavior: "when_no_templates"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws"
+  /api/v1/divyasutra/store/cart/{cartId}/items/{itemId}/{userId}:
+    put:
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "itemId"
+        in: "path"
+        required: true
+        type: "string"
+      - name: "userId"
+        in: "path"
+        required: true
+        type: "string"
+      - name: "cartId"
+        in: "path"
+        required: true
+        type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          schema:
+            $ref: "#/definitions/Empty"
+      x-amazon-apigateway-integration:
+        uri: "arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:430118830579:function:whats-app-chat-bot-poc-CartFunction-5m6SZ22HrJr9/invocations"
+        httpMethod: "POST"
+        responses:
+          default:
+            statusCode: "200"
+        requestTemplates:
+          application/json: "{\r\n  \"operation\": \"UPDATE_ITEM\",\r\n  \"cartId\"\
+            : \"$input.params('cartId')\",\r\n  \"itemId\": \"$input.params('itemId')\"\
+            ,\r\n  \"userId\": \"$input.params('userId')\",\r\n  \"payload\": $input.json('$')\r\
+            \n}"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws"
+    delete:
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "itemId"
+        in: "path"
+        required: true
+        type: "string"
+      - name: "userId"
+        in: "path"
+        required: true
+        type: "string"
+      - name: "cartId"
+        in: "path"
+        required: true
+        type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          schema:
+            $ref: "#/definitions/Empty"
+      x-amazon-apigateway-integration:
+        uri: "arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:430118830579:function:whats-app-chat-bot-poc-CartFunction-5m6SZ22HrJr9/invocations"
+        httpMethod: "POST"
+        responses:
+          default:
+            statusCode: "200"
+        requestTemplates:
+          application/json: "{\r\n  \"operation\": \"REMOVE_ITEM\",\r\n  \"cartId\"\
+            : \"$input.params('cartId')\",\r\n  \"itemId\": \"$input.params('itemId')\"\
+            ,\r\n  \"userId\": \"$input.params('userId')\"\r\n}"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws"
+  /api/v1/divyasutra/store/cart/{cartId}/{userId}:
+    get:
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "userId"
+        in: "path"
+        required: true
+        type: "string"
+      - name: "cartId"
+        in: "path"
+        required: true
+        type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          schema:
+            $ref: "#/definitions/Empty"
+      x-amazon-apigateway-integration:
+        uri: "arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:430118830579:function:whats-app-chat-bot-poc-CartFunction-5m6SZ22HrJr9/invocations"
+        httpMethod: "POST"
+        responses:
+          default:
+            statusCode: "200"
+        requestTemplates:
+          application/json: "{\r\n  \"operation\": \"GET_CART\",\r\n  \"cartId\":\
+            \ \"$util.escapeJavaScript($input.params('cartId'))\",\r\n  \"userId\"\
+            : \"$util.escapeJavaScript($input.params('userId'))\"\r\n}"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws"
+  /api/v1/divyasutra/store/order:
+    get:
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "userId"
+        in: "query"
+        required: false
+        type: "string"
+      - name: "phoneNumber"
+        in: "query"
+        required: false
+        type: "string"
+      - name: "status"
+        in: "query"
+        required: false
+        type: "string"
+      - name: "limit"
+        in: "query"
+        required: false
+        type: "string"
+      - name: "page"
+        in: "query"
+        required: false
+        type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          schema:
+            $ref: "#/definitions/Empty"
+      x-amazon-apigateway-integration:
+        uri: "arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:430118830579:function:whats-app-chat-bot-poc-OrderFunction-V2k0Y5Ff2Lku/invocations"
+        httpMethod: "POST"
+        responses:
+          default:
+            statusCode: "200"
+        requestTemplates:
+          application/json: "#set($userId = $input.params('userId'))\r\n#set($whatsappNumber\
+            \ = $input.params('phoneNumber'))\r\n#set($status = $input.params('status'))\r\
+            \n#set($page = $input.params('page'))\r\n#set($limit = $input.params('limit'))\r\
+            \n\r\n#if($util.isNullOrEmpty($page))\r\n  #set($page = \"1\")\r\n#end\r\
+            \n\r\n#if($util.isNullOrEmpty($limit))\r\n  #set($limit = \"10\")\r\n\
+            #end\r\n\r\n{\r\n  \"operation\": \"LIST_ORDERS\",\r\n  \"filters\": {\r\
+            \n    \"userId\": \"$util.escapeJavaScript($userId)\",\r\n    \"whatsappNumber\"\
+            : \"$util.escapeJavaScript($whatsappNumber)\",\r\n    \"status\": \"$util.escapeJavaScript($status)\"\
+            \r\n  },\r\n  \"pagination\": {\r\n    \"page\": \"$page\",\r\n    \"\
+            limit\": \"$limit\"\r\n  }\r\n}\r\n"
+        passthroughBehavior: "when_no_templates"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws"
+    post:
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      responses:
+        "200":
+          description: "200 response"
+          schema:
+            $ref: "#/definitions/Empty"
+      x-amazon-apigateway-integration:
+        uri: "arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:430118830579:function:whats-app-chat-bot-poc-OrderFunction-V2k0Y5Ff2Lku/invocations"
+        httpMethod: "POST"
+        responses:
+          default:
+            statusCode: "200"
+        requestTemplates:
+          application/json: "{\r\n  \"operation\": \"CREATE_ORDER\",\r\n  \"payload\"\
+            : $input.json('$')\r\n}"
+        passthroughBehavior: "when_no_templates"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws"
+  /api/v1/divyasutra/store/order/{orderId}:
+    get:
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "orderId"
+        in: "path"
+        required: true
+        type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          schema:
+            $ref: "#/definitions/Empty"
+      x-amazon-apigateway-integration:
+        uri: "arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:430118830579:function:whats-app-chat-bot-poc-OrderFunction-V2k0Y5Ff2Lku/invocations"
+        httpMethod: "POST"
+        responses:
+          default:
+            statusCode: "200"
+        requestParameters:
+          integration.request.path.orderId: "method.request.path.orderId"
+        requestTemplates:
+          application/json: "{\r\n  \"operation\": \"GET_ORDER\",\r\n  \"orderId\"\
+            : \"$util.escapeJavaScript($input.params('orderId'))\"\r\n}"
+        passthroughBehavior: "when_no_templates"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws"
+  /api/v1/divyasutra/store/order/{orderId}/status:
+    put:
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "orderId"
+        in: "path"
+        required: true
+        type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          schema:
+            $ref: "#/definitions/Empty"
+      x-amazon-apigateway-integration:
+        uri: "arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:430118830579:function:whats-app-chat-bot-poc-OrderFunction-V2k0Y5Ff2Lku/invocations"
+        httpMethod: "POST"
+        responses:
+          default:
+            statusCode: "200"
+        requestParameters:
+          integration.request.path.orderId: "method.request.path.orderId"
+        requestTemplates:
+          application/json: "{\r\n  \"operation\": \"UPDATE_ORDER_STATUS\",\r\n  \"\
+            orderId\": \"$util.escapeJavaScript($input.params('orderId'))\",\r\n \
+            \ \"payload\": $input.json('$')\r\n}"
+        passthroughBehavior: "when_no_templates"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws"
+  /api/v1/divyasutra/store/product:
+    get:
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "category"
+        in: "query"
+        required: false
+        type: "string"
+      - name: "limit"
+        in: "query"
+        required: false
+        type: "string"
+      - name: "page"
+        in: "query"
+        required: false
+        type: "string"
+      - name: "search"
+        in: "query"
+        required: false
+        type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          schema:
+            $ref: "#/definitions/Empty"
+      x-amazon-apigateway-request-validator: "Validate query string parameters and\
+        \ headers"
+      x-amazon-apigateway-integration:
+        uri: "arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:430118830579:function:whats-app-chat-bot-poc-ProductsFunction-c862tUwgaPlo/invocations"
+        httpMethod: "POST"
+        responses:
+          default:
+            statusCode: "200"
+        requestTemplates:
+          application/json: "#set($category = $input.params('category'))\r\n#set($search\
+            \   = $input.params('search'))\r\n#set($page     = $input.params('page'))\r\
+            \n#set($limit    = $input.params('limit'))\r\n\r\n#if($util.isNullOrEmpty($page))\r\
+            \n  #set($page = \"1\")\r\n#end\r\n\r\n#if($util.isNullOrEmpty($limit))\r\
+            \n  #set($limit = \"20\")\r\n#end\r\n\r\n{\r\n  \"operation\": \"LIST_PRODUCTS\"\
+            ,\r\n  \"filters\": {\r\n    \"category\": \"$util.escapeJavaScript($category)\"\
+            ,\r\n    \"search\": \"$util.escapeJavaScript($search)\"\r\n  },\r\n \
+            \ \"pagination\": {\r\n    \"page\": \"$page\",\r\n    \"limit\": \"$limit\"\
+            \r\n  }\r\n}\r\n"
+        passthroughBehavior: "when_no_templates"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws"
+    post:
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      responses:
+        "200":
+          description: "200 response"
+          schema:
+            $ref: "#/definitions/Empty"
+      x-amazon-apigateway-integration:
+        uri: "arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:430118830579:function:whats-app-chat-bot-poc-ProductsFunction-c862tUwgaPlo/invocations"
+        httpMethod: "POST"
+        responses:
+          default:
+            statusCode: "200"
+        requestTemplates:
+          application/json: "#set($body = $util.parseJson($input.body))\r\n\r\n{\r\
+            \n  \"operation\": \"CREATE_PRODUCT\",\r\n  \"product\": $input.json(\"\
+            $.product\")\r\n}"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws"
+  /api/v1/divyasutra/store/product/{id}:
+    get:
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "id"
+        in: "path"
+        required: true
+        type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          schema:
+            $ref: "#/definitions/Empty"
+      x-amazon-apigateway-request-validator: "Validate query string parameters and\
+        \ headers"
+      x-amazon-apigateway-integration:
+        uri: "arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:430118830579:function:whats-app-chat-bot-poc-ProductsFunction-c862tUwgaPlo/invocations"
+        httpMethod: "POST"
+        responses:
+          default:
+            statusCode: "200"
+        requestParameters:
+          integration.request.path.id: "method.request.path.id"
+        requestTemplates:
+          application/json: "#set($id = $input.params('id'))\r\n{\r\n  \"operation\"\
+            : \"GET_PRODUCT\",\r\n  \"id\": \"$util.escapeJavaScript($id)\"\r\n}\r\
+            \n\r\n"
+        passthroughBehavior: "when_no_templates"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws"
+    put:
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "id"
+        in: "path"
+        required: true
+        type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          schema:
+            $ref: "#/definitions/Empty"
+      x-amazon-apigateway-integration:
+        uri: "arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:430118830579:function:whats-app-chat-bot-poc-ProductsFunction-c862tUwgaPlo/invocations"
+        httpMethod: "POST"
+        responses:
+          default:
+            statusCode: "200"
+        requestTemplates:
+          application/json: "#set($body = $util.parseJson($input.body))\r\n#set($productId\
+            \ = $input.params(\"id\"))\r\n\r\n{\r\n  \"operation\": \"UPDATE_PRODUCT\"\
+            ,\r\n  \"id\": \"$util.escapeJavaScript($productId)\",\r\n  \"updates\"\
+            : $input.json(\"$.updates\")\r\n}\r\n"
+        passthroughBehavior: "when_no_match"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws"
+  /api/v1/divyasutra/store/user:
+    get:
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "phone"
+        in: "query"
+        required: true
+        type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          schema:
+            $ref: "#/definitions/Empty"
+      x-amazon-apigateway-integration:
+        uri: "arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:430118830579:function:whats-app-chat-bot-poc-UserFunction-m7rXOLqMcLoF/invocations"
+        httpMethod: "POST"
+        responses:
+          default:
+            statusCode: "200"
+        requestTemplates:
+          application/json: "#set($phone = $util.escapeJavaScript($input.params('phone')))\r\
+            \n\r\n{\r\n  \"operation\": \"GET_USER_BY_PHONE\",\r\n  \"phone\": #if($phone\
+            \ && $phone != \"\")\"$phone\"#else null#end\r\n}"
+        passthroughBehavior: "when_no_templates"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws"
+    post:
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      responses:
+        "200":
+          description: "200 response"
+          schema:
+            $ref: "#/definitions/Empty"
+      x-amazon-apigateway-integration:
+        uri: "arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:430118830579:function:whats-app-chat-bot-poc-UserFunction-m7rXOLqMcLoF/invocations"
+        httpMethod: "POST"
+        responses:
+          default:
+            statusCode: "200"
+        requestTemplates:
+          application/json: "{\r\n  \"operation\": \"CREATE_USER\",\r\n  \"payload\"\
+            : $input.json('$')\r\n}"
+        passthroughBehavior: "when_no_templates"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws"
+  /api/v1/divyasutra/store/user/{userId}:
+    get:
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "userId"
+        in: "path"
+        required: true
+        type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          schema:
+            $ref: "#/definitions/Empty"
+      x-amazon-apigateway-integration:
+        uri: "arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:430118830579:function:whats-app-chat-bot-poc-UserFunction-m7rXOLqMcLoF/invocations"
+        httpMethod: "POST"
+        responses:
+          default:
+            statusCode: "200"
+        requestParameters:
+          integration.request.path.userId: "method.request.path.userId"
+        requestTemplates:
+          application/json: "{\r\n  \"operation\": \"GET_USER\",\r\n  \"userId\":\
+            \ \"$util.escapeJavaScript($input.params('userId'))\"\r\n}"
+        passthroughBehavior: "when_no_templates"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws"
+    patch:
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "userId"
+        in: "path"
+        required: true
+        type: "string"
+      responses:
+        "200":
+          description: "200 response"
+          schema:
+            $ref: "#/definitions/Empty"
+      x-amazon-apigateway-integration:
+        uri: "arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:430118830579:function:whats-app-chat-bot-poc-UserFunction-m7rXOLqMcLoF/invocations"
+        httpMethod: "POST"
+        responses:
+          default:
+            statusCode: "200"
+        requestParameters:
+          integration.request.path.userId: "method.request.path.userId"
+        requestTemplates:
+          application/json: "{\r\n  \"operation\": \"UPDATE_USER\",\r\n  \"userId\"\
+            : \"$util.escapeJavaScript($input.params('userId'))\",\r\n  \"payload\"\
+            : $input.json('$')\r\n}"
+        passthroughBehavior: "when_no_templates"
+        timeoutInMillis: 29000
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws"
+definitions:
+  Empty:
+    type: "object"
+    title: "Empty Schema"
+x-amazon-apigateway-security-policy: "SecurityPolicy_TLS13_1_3_2025_09"
+x-amazon-apigateway-endpoint-access-mode: "BASIC"
+x-amazon-apigateway-request-validators:
+  Validate query string parameters and headers:
+    validateRequestParameters: true
+    validateRequestBody: false
