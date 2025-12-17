@@ -213,9 +213,9 @@ def get_cart(event: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def add_item(event: Dict[str, Any]) -> Dict[str, Any]:
-    user_id = event.get("userId")
     cart_id = event.get("cartId")
     payload = event.get("payload") or {}
+    user_id = payload.get("userId")
 
     if not user_id or not cart_id:
         return _response(400, {"message": "userId and cartId are required"})

@@ -190,9 +190,11 @@ def get_user_by_phone(event: Dict[str, Any]):
     """
 
     phone = event.get("phone")
+
     if not phone:
         return _response(400, {"message": "phone is required"})
-
+    else:
+        phone = "+91" + phone
     try:
         resp = users_table.query(
             IndexName="PhoneIndex",
@@ -208,6 +210,7 @@ def get_user_by_phone(event: Dict[str, Any]):
         return _response(404, {"message": "User not found for phone"})
 
     return _response(200, items[0])
+
 
 def list_users(event: Dict[str, Any]):
     """
@@ -243,6 +246,7 @@ def list_users(event: Dict[str, Any]):
         result["lastKey"] = resp["LastEvaluatedKey"]
 
     return _response(200, result)
+
 
 def lambda_handler(event, context):
     """
