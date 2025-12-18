@@ -1,47 +1,58 @@
 # AWS CloudFormation Template for a WhatsApp Webhook Application
-# This template defines resources for an API Gateway HTTP API and AWS Lambda functions
-# to handle WhatsApp webhook events, along with DynamoDB tables for data storage.
+# Updated to add: SQS inbound/outbound + DLQs, BotSessions + BotMessageLogs tables,
+# and event mappings for: HTTP API -> WebhookIngestor -> Inbound SQS -> Orchestrator -> Outbound SQS -> Sender (Meta Cloud API)
 
-AWSTemplateFormatVersion: '2010-09-09'  # Specifies the version of the AWS CloudFormation template format.
-Transform: AWS::Serverless-2016-10-31  # Enables the use of AWS SAM (Serverless Application Model).
-Description: WhatsApp Webhook (API Gateway HTTP API + Lambda)  # Description of the template.
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: WhatsApp Webhook (API Gateway HTTP API + Lambda + SQS + DynamoDB) - Meta Cloud API
 
 Globals:
   Function:
-    Runtime: python3.12  # Specifies the Python runtime for all Lambda functions.
-    Timeout: 10  # Maximum execution time for Lambda functions in seconds.
-    MemorySize: 256  # Memory allocated to Lambda functions in MB.
-    Tracing: Active  # Enables AWS X-Ray tracing for Lambda functions.
-    Architectures: [ x86_64 ]  # Specifies the architecture for Lambda functions.
+    Runtime: python3.12
+    Timeout: 10
+    MemorySize: 256
+    Tracing: Active
+    Architectures: [ x86_64 ]
     Environment:
-      Variables: # Environment variables for Lambda functions.
+      Variables:
+        # You currently use these as env vars. Recommended: read from SSM at runtime,
+        # but keeping as-is to match your template.
         VERIFY_TOKEN: dev-bot-verify-token
         APP_SECRET: dev-bot-meta-api-key
         PHONE_ID: dev-bot-phone-number-id
         USER_TOKEN: dev-bot-system-user-token
-        PRODUCTS_TABLE_NAME: !Ref ProductsTable  # Reference to the Products DynamoDB table.
-        CARTS_TABLE_NAME: !Ref CartsTable  # Reference to the Carts DynamoDB table.
-        ORDERS_TABLE_NAME: !Ref OrdersTable  # Reference to the Orders DynamoDB table.
-        USERS_TABLE_NAME: !Ref UsersTable  # Reference to the Users DynamoDB table.
+
+        PRODUCTS_TABLE_NAME: !Ref ProductsTable
+        CARTS_TABLE_NAME: !Ref CartsTable
+        ORDERS_TABLE_NAME: !Ref OrdersTable
+        USERS_TABLE_NAME: !Ref UsersTable
+
+        # NEW: bot flow infra
+        BOT_SESSIONS_TABLE_NAME: !Ref BotSessionsTable
+        BOT_MESSAGE_LOGS_TABLE_NAME: !Ref BotMessageLogsTable
+        INBOUND_QUEUE_URL: !Ref InboundQueue
+        OUTBOUND_QUEUE_URL: !Ref OutboundQueue
 
 Resources:
-  # DynamoDB Table to store product catalog data.
+  # =========================
+  # DynamoDB Tables (Existing)
+  # =========================
   ProductsTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: ds-products  # Name of the DynamoDB table.
-      BillingMode: PAY_PER_REQUEST  # On-demand billing mode.
-      AttributeDefinitions: # Attributes for the table.
+      TableName: ds-products
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
         - AttributeName: productId
-          AttributeType: S  # String type.
+          AttributeType: S
         - AttributeName: category
           AttributeType: S
         - AttributeName: sortKey
           AttributeType: S
-      KeySchema: # Primary key schema.
+      KeySchema:
         - AttributeName: productId
-          KeyType: HASH  # Partition key.
-      GlobalSecondaryIndexes: # Secondary index for querying by category.
+          KeyType: HASH
+      GlobalSecondaryIndexes:
         - IndexName: CategoryIndex
           KeySchema:
             - AttributeName: category
@@ -49,9 +60,8 @@ Resources:
             - AttributeName: sortKey
               KeyType: RANGE
           Projection:
-            ProjectionType: ALL  # Includes all attributes in the index.
+            ProjectionType: ALL
 
-  # DynamoDB Table to store user carts.
   CartsTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -67,7 +77,6 @@ Resources:
           KeyType: HASH
         - AttributeName: cartId
           KeyType: RANGE
-
       GlobalSecondaryIndexes:
         - IndexName: CartIdIndex
           KeySchema:
@@ -75,11 +84,10 @@ Resources:
               KeyType: HASH
           Projection:
             ProjectionType: ALL
-
       TimeToLiveSpecification:
         AttributeName: expiresAt
         Enabled: true
-  # DynamoDB Table to store confirmed orders.
+
   OrdersTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -90,7 +98,7 @@ Resources:
           AttributeType: S
         - AttributeName: userId
           AttributeType: S
-        - AttributeName: whatsappNumber     # ✅ add
+        - AttributeName: whatsappNumber
           AttributeType: S
         - AttributeName: createdAt
           AttributeType: S
@@ -106,7 +114,7 @@ Resources:
               KeyType: RANGE
           Projection:
             ProjectionType: ALL
-        - IndexName: WhatsAppOrdersIndex     # ✅ add
+        - IndexName: WhatsAppOrdersIndex
           KeySchema:
             - AttributeName: whatsappNumber
               KeyType: HASH
@@ -115,7 +123,6 @@ Resources:
           Projection:
             ProjectionType: ALL
 
-  # DynamoDB Table to store user data and session state.
   UsersTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -137,27 +144,95 @@ Resources:
           Projection:
             ProjectionType: ALL
 
-  # IAM Role for Lambda functions to access DynamoDB and other AWS services.
+  # =========================
+  # DynamoDB Tables (NEW)
+  # =========================
+  BotSessionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: ds-bot-sessions
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: whatsappNumber
+          AttributeType: S
+      KeySchema:
+        - AttributeName: whatsappNumber
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  BotMessageLogsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: ds-bot-message-logs
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: messageKey
+          AttributeType: S
+      KeySchema:
+        - AttributeName: messageKey
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  # =========================
+  # SQS Queues (NEW)
+  # =========================
+  InboundDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: ds-bot-inbound-dlq
+      MessageRetentionPeriod: 1209600 # 14 days
+
+  InboundQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: ds-bot-inbound-queue
+      VisibilityTimeout: 45
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt InboundDLQ.Arn
+        maxReceiveCount: 3
+
+  OutboundDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: ds-bot-outbound-dlq
+      MessageRetentionPeriod: 1209600 # 14 days
+
+  OutboundQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: ds-bot-outbound-queue
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt OutboundDLQ.Arn
+        maxReceiveCount: 5
+
+  # =========================
+  # IAM Role (UPDATED)
+  # =========================
   BotExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub whatsapp-bot-execution-role-${AWS::StackName}  # Role name with stack name suffix.
-      AssumeRolePolicyDocument: # Trust policy for Lambda service.
+      RoleName: !Sub whatsapp-bot-execution-role-${AWS::StackName}
+      AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
             Principal:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
-      ManagedPolicyArns: # AWS managed policies for Lambda execution and X-Ray.
+      ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
         - arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess
-      Policies: # Inline policy for DynamoDB and SSM Parameter Store access.
-        - PolicyName: BotDynamoDBAccess
+      Policies:
+        - PolicyName: BotDynamoDBSqsAccess
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
-              # Permissions for DynamoDB operations.
+              # DynamoDB access
               - Effect: Allow
                 Action:
                   - dynamodb:Scan
@@ -174,6 +249,9 @@ Resources:
                   - !GetAtt CartsTable.Arn
                   - !GetAtt OrdersTable.Arn
                   - !GetAtt UsersTable.Arn
+                  - !GetAtt BotSessionsTable.Arn
+                  - !GetAtt BotMessageLogsTable.Arn
+
               - Effect: Allow
                 Action: dynamodb:Query
                 Resource:
@@ -182,7 +260,23 @@ Resources:
                   - !Sub "${ProductsTable.Arn}/index/CategoryIndex"
                   - !Sub "${UsersTable.Arn}/index/PhoneIndex"
                   - !Sub "${CartsTable.Arn}/index/CartIdIndex"
-              # Permissions for SSM Parameter Store.
+
+              # SQS access (send + consume)
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                  - sqs:SendMessageBatch
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:ChangeMessageVisibility
+                  - sqs:GetQueueAttributes
+                Resource:
+                  - !GetAtt InboundQueue.Arn
+                  - !GetAtt OutboundQueue.Arn
+                  - !GetAtt InboundDLQ.Arn
+                  - !GetAtt OutboundDLQ.Arn
+
+              # SSM parameters (keeping your explicit ARNs)
               - Effect: Allow
                 Action:
                   - ssm:GetParameter
@@ -192,15 +286,63 @@ Resources:
                   - arn:aws:ssm:ap-south-1:430118830579:parameter/dev-bot-system-user-token
                   - arn:aws:ssm:ap-south-1:430118830579:parameter/dev-bot-phone-number-id
 
-  # Lambda function to handle incoming POST requests from WhatsApp.
+  # =========================
+  # Lambda Functions (Existing + NEW flow)
+  # =========================
+
+  # 1) HTTP webhook -> push to InboundQueue (NEW)
+  WebhookIngestorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./whatsapp-bot
+      Handler: webhook_ingestor.handler   # <-- create this handler file
+      Role: !GetAtt BotExecutionRole.Arn
+      Timeout: 10
+
+  # 2) Inbound SQS consumer -> decide response -> push to OutboundQueue (NEW)
+  ConversationOrchestratorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./whatsapp-bot
+      Handler: conversation_orchestrator.handler  # <-- create this handler file
+      Role: !GetAtt BotExecutionRole.Arn
+      Timeout: 30
+      Events:
+        InboundQueueEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt InboundQueue.Arn
+            BatchSize: 10
+            MaximumBatchingWindowInSeconds: 5
+            FunctionResponseTypes:
+              - ReportBatchItemFailures
+
+  # 3) Outbound SQS consumer -> send via Meta Cloud API (NEW)
+  WhatsAppSenderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./whatsapp-bot
+      Handler: whatsapp_sender.handler  # <-- create this handler file
+      Role: !GetAtt BotExecutionRole.Arn
+      Timeout: 30
+      Events:
+        OutboundQueueEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt OutboundQueue.Arn
+            BatchSize: 5
+            MaximumBatchingWindowInSeconds: 2
+            FunctionResponseTypes:
+              - ReportBatchItemFailures
+
+  # ---- Your existing Lambdas (kept as-is) ----
   WebhookFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: ./whatsapp-bot  # Path to the function code.
-      Handler: post_data.post_handler  # Entry point for the function.
-      Role: !GetAtt BotExecutionRole.Arn  # IAM role for the function.
+      CodeUri: ./whatsapp-bot
+      Handler: post_data.post_handler
+      Role: !GetAtt BotExecutionRole.Arn
 
-  # Lambda function to handle GET requests for webhook verification.
   VerifyBotFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -208,7 +350,6 @@ Resources:
       Handler: app.get_handler
       Role: !GetAtt BotExecutionRole.Arn
 
-  # Lambda function to handle product-related operations.
   ProductsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -216,7 +357,6 @@ Resources:
       Handler: product_function.lambda_handler
       Role: !GetAtt BotExecutionRole.Arn
 
-  # Lambda function to handle cart-related operations.
   CartFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -224,7 +364,6 @@ Resources:
       Handler: cart_function.lambda_handler
       Role: !GetAtt BotExecutionRole.Arn
 
-  # Lambda function to handle user-related operations.
   UserFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -232,10 +371,23 @@ Resources:
       Handler: user_function.lambda_handler
       Role: !GetAtt BotExecutionRole.Arn
 
-  # Lambda function to handle order-related operations.
   OrderFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: ./whatsapp-bot
       Handler: order_function.lambda_handler
       Role: !GetAtt BotExecutionRole.Arn
+
+Outputs:
+
+  InboundQueueUrl:
+    Value: !Ref InboundQueue
+
+  OutboundQueueUrl:
+    Value: !Ref OutboundQueue
+
+  BotSessionsTableName:
+    Value: !Ref BotSessionsTable
+
+  BotMessageLogsTableName:
+    Value: !Ref BotMessageLogsTable
